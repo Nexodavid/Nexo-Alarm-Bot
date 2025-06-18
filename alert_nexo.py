@@ -84,11 +84,15 @@ except Exception as e:
 try:
     caption = body + (f"\n⚠️ NEXO 가격이 $1.00 아래입니다!" if nexo_price < PRICE_THRESHOLD else "")
     telegram_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
+    
     with open("chart.png", "rb") as img:
         requests.post(telegram_url, data={
             "chat_id": TELEGRAM_CHAT_ID,
             "caption": caption
         }, files={"photo": img})
-    print("텔레그램 전송 완료")
+        
+        print(response.text)
+        print("📤텔레그램 전송 완료")
+
 except Exception as e:
     print(f"텔레그램 실패: {e}")
