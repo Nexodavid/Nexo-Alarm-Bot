@@ -33,6 +33,14 @@ jobs:
             touch news_cache.txt
           fi
 
+      - name: Load Previous Price
+        run: |
+          if [ -f previous_price.txt ]; then
+            cp previous_price.txt price_cache.txt
+          else
+            echo "0" > price_cache.txt
+          fi
+
       - name: Run Nexo Alert Script
         env:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
@@ -44,3 +52,7 @@ jobs:
       - name: Save News Cache
         run: |
           cp news_cache.txt previous_news.txt
+
+      - name: Save Latest Price
+        run: |
+          tail -n 1 price_cache.txt > previous_price.txt
