@@ -25,6 +25,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install feedparser requests beautifulsoup4 matplotlib
 
+      - name: Load Previous News Cache
+        run: |
+          if [ -f previous_news.txt ]; then
+            cp previous_news.txt news_cache.txt
+          else
+            touch news_cache.txt
+          fi
+
       - name: Run Nexo Alert Script
         env:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
@@ -32,3 +40,7 @@ jobs:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python alert_nexo.py
+
+      - name: Save News Cache
+        run: |
+          cp news_cache.txt previous_news.txt
