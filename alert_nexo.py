@@ -82,7 +82,7 @@ except Exception as e:
 
 # 텔레그램 전송 (차트 포함)
 try:
-    caption = body + (f"\n⚠️ NEXO 가격이 $1.00 아래입니다!" if nexo_price < PRICE_THRESHOLD else "")
+    caption = "⚠️ NEXO 가격이 $1.00 아래입니다!"
     telegram_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
 
     with open("chart.png", "rb") as img:
