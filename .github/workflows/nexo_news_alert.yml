@@ -31,9 +31,7 @@ jobs:
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          echo "" > alert_nexo.py
-          cat <<EOF > alert_nexo.py
+        run: python alert_nexo.py
 import feedparser
 import smtplib
 from email.mime.text import MIMEText
