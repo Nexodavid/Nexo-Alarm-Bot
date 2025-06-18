@@ -33,6 +33,14 @@ jobs:
             touch news_cache.txt
           fi
 
+      - name: Load Previous Twitter Cache
+        run: |
+          if [ -f previous_tweets.txt ]; then
+            cp previous_tweets.txt tweet_cache.txt
+          else
+            touch tweet_cache.txt
+          fi
+
       - name: Load Previous Price
         run: |
           if [ -f previous_price.txt ]; then
@@ -52,6 +60,10 @@ jobs:
       - name: Save News Cache
         run: |
           cp news_cache.txt previous_news.txt
+
+      - name: Save Tweet Cache
+        run: |
+          cp tweet_cache.txt previous_tweets.txt
 
       - name: Save Latest Price
         run: |
