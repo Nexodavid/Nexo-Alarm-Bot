@@ -1,112 +1,135 @@
-import feedparser
-import requests
-import smtplib
+# alert_nexo.py
 import os
+import requests
+import feedparser
+from bs4 import BeautifulSoup
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.image import MIMEImage
+import smtplib
 import matplotlib.pyplot as plt
-from email.message import EmailMessage
-from datetime import datetime
 
-# 환경변수 불러오기
-EMAIL_USER = os.getenv("EMAIL_USER")
-EMAIL_PASS = os.getenv("EMAIL_PASS")
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 PRICE_THRESHOLD = 1.00
+NEWS_FEED = "https://news.google.com/rss/search?q=Nexo+crypto&hl=en-US&gl=US&ceid=US:en"
+TWITTER_URL = "https://nitter.net/search?f=tweets&q=Nexo+crypto&since=&until=&near="
+PRICE_API = "https://api.coingecko.com/api/v3/simple/price?ids=nexo&vs_currencies=usd"
 
-# 이전 뉴스 캐시 불러오기
-try:
-    with open("news_cache.txt", "r", encoding="utf-8") as f:
-        cached_titles = set(line.strip() for line in f.readlines())
-except FileNotFoundError:
-    cached_titles = set()
+EMAIL_FROM = os.environ['EMAIL_USER']
+EMAIL_PASS = os.environ['EMAIL_PASS']
+EMAIL_TO = os.environ['EMAIL_USER']
+EMAIL_SUBJECT = "[Nexo Alert] 새로운 뉴스/트윗/가격변동"
+TELEGRAM_TOKEN = os.environ['TELEGRAM_TOKEN']
+TELEGRAM_CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
 
-# 뉴스 수집
-feed = feedparser.parse("https://cointelegraph.com/rss")
-new_entries = []
-for entry in feed.entries[:10]:
-    title = entry.title.strip()
-    if "nexo" in title.lower() and title not in cached_titles:
-        new_entries.append(f"- {title}")
-        cached_titles.add(title)
+# 뉴스 수집 및 필터링
+def fetch_news():
+    feed = feedparser.parse(NEWS_FEED)
+    previous = set(open("news_cache.txt", encoding="utf-8").read().splitlines())
+    new_items = []
+    with open("news_cache.txt", "a", encoding="utf-8") as f:
+        for entry in feed.entries[:10]:
+            key = entry.link.strip()
+            if key not in previous:
+                line = f"[뉴스] {entry.title} ({entry.link})"
+                new_items.append(line)
+                f.write(f"{key}\n")
+    return new_items
 
-# 캐시 저장
-with open("news_cache.txt", "w", encoding="utf-8") as f:
-    for title in cached_titles:
-        f.write(title + "\n")
+# 트윗 수집 및 필터링
+def fetch_tweets():
+    try:
+        resp = requests.get(TWITTER_URL, timeout=10)
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        tweets = soup.find_all('div', class_='tweet-body')[:3]
+        previous = set(open("tweet_cache.txt", encoding="utf-8").read().splitlines())
+        tweet_items = []
+        with open("tweet_cache.txt", "a", encoding="utf-8") as f:
+            for div in tweets:
+                text = div.get_text(strip=True)
+                if text not in previous:
+                    tweet_items.append(f"[트윗] {text}")
+                    f.write(f"{text}\n")
+        return tweet_items
+    except Exception:
+        return ["[트윗] 트위터 수집 실패"]
 
-# 내용 생성
-if new_entries:
-    news_body = "\n".join(new_entries)
-else:
-    news_body = "새로운 소식은 없습니다."
+# 가격 수집 및 차트
+def fetch_price():
+    try:
+        price = requests.get(PRICE_API).json()['nexo']['usd']
+    except:
+        price = 0
+    with open("price_cache.txt", "a") as f:
+        f.write(f"{price}\n")
+    with open("price_cache.txt") as f:
+        prices = [float(x.strip()) for x in f.readlines() if x.strip()]
+    if len(prices) > 20:
+        prices = prices[-20:]
 
-# 트위터 검색 (단순 웹 스크래핑 방식)
-tweet_body = ""
-try:
-    headers = {"User-Agent": "Mozilla/5.0"}
-    r = requests.get("https://nitter.net/search?f=tweets&q=nexo&since=&until=", headers=headers)
-    if "nexo" in r.text.lower():
-        tweet_body = "최근 트윗에서 'nexo' 언급이 확인되었습니다."
-    else:
-        tweet_body = "관련 트윗이 없습니다."
-except Exception as e:
-    tweet_body = f"트위터 확인 실패: {e}"
+    plt.style.use('ggplot')
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.plot(prices, marker='o', linewidth=2, label="NEXO")
+    ax.axhline(PRICE_THRESHOLD, color='red', linestyle='dashed', linewidth=1)
+    ax.set_title("NEXO 가격 추이", fontsize=12)
+    ax.set_ylabel("가격 (USD)")
+    ax.set_xlabel("시간")
+    ax.legend()
+    fig.tight_layout()
+    plt.savefig("chart.png")
+    plt.close()
 
-# 가격 조회 및 변동률 계산
-price_res = requests.get("https://api.coingecko.com/api/v3/simple/price?ids=nexo&vs_currencies=usd")
-nexo_price = price_res.json().get("nexo", {}).get("usd", 0)
+    previous_price = prices[-2] if len(prices) > 1 else price
+    delta = price - previous_price
+    percent = (delta / previous_price * 100) if previous_price != 0 else 0
+    direction = "📈 상승" if delta > 0 else "📉 하락" if delta < 0 else "➖ 변동 없음"
+    change_text = f"{direction} ({percent:+.2f}%)"
 
-try:
-    with open("previous_price.txt", "r") as f:
-        prev_price = float(f.read().strip())
-except:
-    prev_price = nexo_price
-
-change_percent = ((nexo_price - prev_price) / prev_price) * 100 if prev_price else 0
-
-with open("previous_price.txt", "w") as f:
-    f.write(str(nexo_price))
-
-# 차트 생성
-prices = [1.20, 1.18, 1.22, 1.19, nexo_price]  # 예시 데이터
-plt.figure()
-plt.plot(prices, marker='o')
-plt.title("NEXO 가격 추이")
-plt.xlabel("시간")
-plt.ylabel("가격 (USD)")
-plt.grid(True)
-plt.axhline(y=PRICE_THRESHOLD, color='r', linestyle='--')
-plt.savefig("chart.png")
+    return price, change_text
 
 # 이메일 전송
-msg = EmailMessage()
-msg["Subject"] = f"[NEXO 알림] 현재 가격 ${nexo_price:.2f} ({change_percent:+.2f}%)"
-msg["From"] = EMAIL_USER
-msg["To"] = EMAIL_USER
-body = f"[NEXO 가격] ${nexo_price:.2f} ({change_percent:+.2f}%)\n\n[뉴스]\n{news_body}\n\n[트위터]\n{tweet_body}"
-msg.set_content(body)
-with open("chart.png", "rb") as img:
-    msg.add_attachment(img.read(), maintype="image", subtype="png", filename="chart.png")
+def send_email(body):
+    msg = MIMEMultipart()
+    msg['From'] = EMAIL_FROM
+    msg['To'] = EMAIL_TO
+    msg['Subject'] = EMAIL_SUBJECT
+    msg.attach(MIMEText(body, 'plain'))
 
-with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-    smtp.login(EMAIL_USER, EMAIL_PASS)
-    smtp.send_message(msg)
+    with open("chart.png", "rb") as img:
+        chart_img = MIMEImage(img.read())
+        chart_img.add_header('Content-Disposition', 'attachment', filename='chart.png')
+        msg.attach(chart_img)
+
+    with smtplib.SMTP("smtp.gmail.com", 587) as server:
+        server.starttls()
+        server.login(EMAIL_FROM, EMAIL_PASS)
+        server.sendmail(EMAIL_FROM, EMAIL_TO, msg.as_string())
+    print("✅ 이메일 전송 완료")
 
 # 텔레그램 전송
-try:
-    if nexo_price < PRICE_THRESHOLD:
-        caption = f"⚠️ NEXO 가격이 ${PRICE_THRESHOLD} 아래입니다!"
-    elif abs(change_percent) >= 5:
-        caption = f"📈 가격 변동률 {change_percent:+.2f}% 감지됨! 현재 ${nexo_price:.2f}"
-    else:
-        caption = f"NEXO 현재 가격은 ${nexo_price:.2f}"
+def send_telegram(caption):
+    try:
+        telegram_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
+        with open("chart.png", "rb") as img:
+            response = requests.post(telegram_url, data={
+                "chat_id": TELEGRAM_CHAT_ID,
+                "caption": caption[:1024]
+            }, files={"photo": img})
+        print(response.text)
+        print("✅ 텔레그램 전송 완료")
+    except Exception as e:
+        print(f"⚠️ 텔레그램 실패: {e}")
 
-    telegram_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
-    with open("chart.png", "rb") as img:
-        response = requests.post(telegram_url, data={
-            "chat_id": TELEGRAM_CHAT_ID,
-            "caption": caption
-        }, files={"photo": img})
-    print(response.text)
-except Exception as e:
-    print(f"❌ 텔레그램 실패: {e}")
+# 실행
+news = fetch_news()
+tweets = fetch_tweets()
+price, delta = fetch_price()
+
+price_text = f"\n📊 NEXO 현재 가격은 ${price:.2f}\n{delta}"
+
+if not news and not tweets:
+    combined = "새로운 뉴스나 트윗이 없습니다." + price_text
+else:
+    combined = "\n".join(news + tweets) + price_text
+
+send_email(combined)
+send_telegram(combined)
