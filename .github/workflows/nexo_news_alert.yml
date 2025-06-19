@@ -1,18 +1,16 @@
-# .github/workflows/nexo_news_alert.yml
-# GitHub Actions Workflow: Nexo 뉴스, 트위터 감지 및 가격변동 텔레그램 알림
-
 name: Nexo Full Alert System
 
 on:
   schedule:
-    - cron: '0 */6 * * *'  # Every 6 hours
-  workflow_dispatch:
+    - cron: '0 */6 * * *'  # 매 6시간마다 실행
+  workflow_dispatch:       # 수동 실행도 가능하게 설정
 
 jobs:
   check-alerts:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v2
 
       - name: Set up Python
@@ -25,17 +23,29 @@ jobs:
           python -m pip install --upgrade pip
           pip install feedparser requests beautifulsoup4 matplotlib
 
-      - name: Prepare news cache
+      - name: Load News Cache
         run: |
-          test -f news_cache.txt || touch news_cache.txt
+          if [ -f previous_news.txt ]; then
+            cp previous_news.txt news_cache.txt
+          else
+            touch news_cache.txt
+          fi
 
-      - name: Prepare tweet cache
+      - name: Load Twitter Cache
         run: |
-          test -f tweet_cache.txt || touch tweet_cache.txt
+          if [ -f previous_tweets.txt ]; then
+            cp previous_tweets.txt tweet_cache.txt
+          else
+            touch tweet_cache.txt
+          fi
 
-      - name: Prepare price cache
+      - name: Load Price Cache
         run: |
-          test -f price_cache.txt || echo "0" > price_cache.txt
+          if [ -f previous_price.txt ]; then
+            cp previous_price.txt price_cache.txt
+          else
+            echo "0" > price_cache.txt
+          fi
 
       - name: Run Nexo Alert Script
         env:
@@ -44,3 +54,12 @@ jobs:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python alert_nexo.py
+
+      - name: Save News Cache
+        run: cp news_cache.txt previous_news.txt
+
+      - name: Save Tweet Cache
+        run: cp tweet_cache.txt previous_tweets.txt
+
+      - name: Save Latest Price
+        run: tail -n 1 price_cache.txt > previous_price.txt
