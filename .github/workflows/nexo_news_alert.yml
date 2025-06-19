@@ -5,7 +5,7 @@ name: Nexo Full Alert System
 
 on:
   schedule:
-    - cron: '0 */6 * * *'  # 매 6시간마다 실행
+    - cron: '0 */6 * * *'  # Every 6 hours
   workflow_dispatch:
 
 jobs:
@@ -25,29 +25,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install feedparser requests beautifulsoup4 matplotlib
 
-      - name: Load Previous News Cache
+      - name: Prepare news cache
         run: |
-          if [ -f previous_news.txt ]; then
-            cp previous_news.txt news_cache.txt
-          else
-            touch news_cache.txt
-          fi
+          test -f news_cache.txt || touch news_cache.txt
 
-      - name: Load Previous Twitter Cache
+      - name: Prepare tweet cache
         run: |
-          if [ -f previous_tweets.txt ]; then
-            cp previous_tweets.txt tweet_cache.txt
-          else
-            touch tweet_cache.txt
-          fi
+          test -f tweet_cache.txt || touch tweet_cache.txt
 
-      - name: Load Previous Price
+      - name: Prepare price cache
         run: |
-          if [ -f previous_price.txt ]; then
-            cp previous_price.txt price_cache.txt
-          else
-            echo "0" > price_cache.txt
-          fi
+          test -f price_cache.txt || echo "0" > price_cache.txt
 
       - name: Run Nexo Alert Script
         env:
@@ -56,15 +44,3 @@ jobs:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python alert_nexo.py
-
-      - name: Save News Cache
-        run: |
-          cp news_cache.txt previous_news.txt
-
-      - name: Save Tweet Cache
-        run: |
-          cp tweet_cache.txt previous_tweets.txt
-
-      - name: Save Latest Price
-        run: |
-          tail -n 1 price_cache.txt > previous_price.txt
