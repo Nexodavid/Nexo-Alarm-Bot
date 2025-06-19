@@ -22,29 +22,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install feedparser requests beautifulsoup4 matplotlib
 
-      - name: Load Previous News Cache
+      - name: Load Previous Caches
         run: |
-          if [ -f previous_news.txt ]; then
-            cp previous_news.txt news_cache.txt
-          else
-            touch news_cache.txt
-          fi
-
-      - name: Load Previous Twitter Cache
-        run: |
-          if [ -f previous_tweets.txt ]; then
-            cp previous_tweets.txt tweet_cache.txt
-          else
-            touch tweet_cache.txt
-          fi
-
-      - name: Load Previous Price
-        run: |
-          if [ -f previous_price.txt ]; then
-            cp previous_price.txt price_cache.txt
-          else
-            echo "0" > price_cache.txt
-          fi
+          cp news_cache.txt previous_news.txt || touch news_cache.txt
+          cp tweet_cache.txt previous_tweets.txt || touch tweet_cache.txt
+          cp price_cache.txt previous_price.txt || echo "0" > price_cache.txt
 
       - name: Run Nexo Alert Script
         env:
@@ -54,11 +36,8 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python alert_nexo.py
 
-      - name: Save News Cache
-        run: cp news_cache.txt previous_news.txt
-
-      - name: Save Tweet Cache
-        run: cp tweet_cache.txt previous_tweets.txt
-
-      - name: Save Latest Price
-        run: tail -n 1 price_cache.txt > previous_price.txt
+      - name: Save Caches
+        run: |
+          cp news_cache.txt previous_news.txt
+          cp tweet_cache.txt previous_tweets.txt
+          tail -n 1 price_cache.txt > previous_price.txt
