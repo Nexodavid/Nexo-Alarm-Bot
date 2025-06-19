@@ -5,26 +5,27 @@ name: Nexo Full Alert System
 on:
   schedule:
     - cron: '0 */6 * * *'  # 매 6시간마다 실행
-  workflow_dispatch:
+  workflow_dispatch:       # 수동 실행 지원
 
 jobs:
   check-alerts:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
+      - name: Checkout repo
+        uses: actions/checkout@v3
 
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: '3.x'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install feedparser requests beautifulsoup4 matplotlib
 
-      - name: Restore News Cache
+      - name: Load news cache
         run: |
           if [ -f previous_news.txt ]; then
             cp previous_news.txt news_cache.txt
@@ -32,7 +33,7 @@ jobs:
             touch news_cache.txt
           fi
 
-      - name: Restore Tweet Cache
+      - name: Load tweet cache
         run: |
           if [ -f previous_tweets.txt ]; then
             cp previous_tweets.txt tweet_cache.txt
@@ -40,7 +41,7 @@ jobs:
             touch tweet_cache.txt
           fi
 
-      - name: Restore Price Cache
+      - name: Load price cache
         run: |
           if [ -f previous_price.txt ]; then
             cp previous_price.txt price_cache.txt
@@ -56,11 +57,11 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python alert_nexo.py
 
-      - name: Save News Cache
+      - name: Save news cache
         run: cp news_cache.txt previous_news.txt
 
-      - name: Save Tweet Cache
+      - name: Save tweet cache
         run: cp tweet_cache.txt previous_tweets.txt
 
-      - name: Save Price Cache
-        run: tail -n 28 price_cache.txt > previous_price.txt
+      - name: Save latest price
+        run: tail -n 1 price_cache.txt > previous_price.txt
