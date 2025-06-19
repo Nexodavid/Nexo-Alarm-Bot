@@ -69,7 +69,7 @@ def fetch_price():
         prices = prices[-20:]
 
     # Draw chart
-    plt.style.use('seaborn-darkgrid')
+    plt.style.use('ggplot')
     fig, ax = plt.subplots(figsize=(6, 4))
     ax.plot(prices, marker='o', linewidth=2, label="NEXO")
     ax.axhline(PRICE_THRESHOLD, color='red', linestyle='dashed', linewidth=1)
