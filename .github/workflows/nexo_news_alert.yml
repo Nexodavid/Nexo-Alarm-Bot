@@ -3,7 +3,7 @@ name: Nexo Full Alert System
 on:
   schedule:
     - cron: '0 */6 * * *'  # 매 6시간마다 실행
-  workflow_dispatch:       # 수동 실행도 가능하게 설정
+  workflow_dispatch:       # 수동 실행도 허용
 
 jobs:
   check-alerts:
@@ -23,7 +23,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install feedparser requests beautifulsoup4 matplotlib
 
-      - name: Load News Cache
+      # 뉴스 캐시 로드
+      - name: Load Previous News Cache
         run: |
           if [ -f previous_news.txt ]; then
             cp previous_news.txt news_cache.txt
@@ -31,7 +32,8 @@ jobs:
             touch news_cache.txt
           fi
 
-      - name: Load Twitter Cache
+      # 트윗 캐시 로드
+      - name: Load Previous Twitter Cache
         run: |
           if [ -f previous_tweets.txt ]; then
             cp previous_tweets.txt tweet_cache.txt
@@ -39,7 +41,8 @@ jobs:
             touch tweet_cache.txt
           fi
 
-      - name: Load Price Cache
+      # 가격 캐시 로드
+      - name: Load Previous Price
         run: |
           if [ -f previous_price.txt ]; then
             cp previous_price.txt price_cache.txt
@@ -47,6 +50,7 @@ jobs:
             echo "0" > price_cache.txt
           fi
 
+      # 메인 파이썬 스크립트 실행
       - name: Run Nexo Alert Script
         env:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
@@ -55,6 +59,7 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python alert_nexo.py
 
+      # 캐시 저장
       - name: Save News Cache
         run: cp news_cache.txt previous_news.txt
 
