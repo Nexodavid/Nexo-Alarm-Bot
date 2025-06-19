@@ -78,34 +78,50 @@ def fetch_price():
         price = requests.get(PRICE_API).json()['nexo']['usd']
     except:
         price = 0
+        
+    # 날짜와 함께 저장
+    today = datetime.today().strftime("%Y-%m-%d")
     with open("price_cache.txt", "a") as f:
-        f.write(f"{price}\n")
-    with open("price_cache.txt") as f:
-        prices = [float(x.strip()) for x in f.readlines() if x.strip()]
-    if len(prices) > 60:
-        prices = prices[-60:]
-    with open("price_cache.txt", "w") as f:
-        f.writelines([f"{x}\n" for x in prices])
+        f.write(f"{today},{price}\n")
 
+    # 캐시 로드
+    dates = []
+    prices = []
+    with open("price_cache.txt") as f:
+        for line in f:
+            if ',' in line:
+                d, p = line.strip().split(',')
+                dates.append(d)
+                prices.append(float(p))
+                
+    if len(prices) > 60:
+        dates = dates[-60:]
+        prices = prices[-60:]
+        with open("price_cache.txt", "w") as f:
+            for d, p in zip(dates, prices):
+                f.write(f"{d},{p}\n")
+
+    # 차트 그리기
     fig, ax = plt.subplots(figsize=(6, 4))
-    ax.plot(prices, marker='o', linewidth=2, color="#007ACC", label="NEXO")
+    ax.plot(dates, prices, marker='o', linewidth=2, label="NEXO", color="#007ACC")
     ax.axhline(PRICE_THRESHOLD, color='red', linestyle='dashed', linewidth=1)
     ax.set_facecolor("#f9f9f9")
     fig.patch.set_facecolor("#ffffff")
     ax.set_title("NEXO Price Trend (7 days)", fontsize=12)
     ax.set_ylabel("Price (USD)")
-    ax.set_xlabel("Time")
+    ax.set_xlabel("Date")
     ax.grid(True)
-    plt.tight_layout()
+    fig.tight_layout()
     plt.savefig("chart.png")
     plt.close()
 
+    # 가격 변화율
     prev = prices[-2] if len(prices) > 1 else price
     delta = price - prev
     percent = (delta / prev * 100) if prev != 0 else 0
-    direction = "📈 Increase" if delta > 0 else "📉 Decrease" if delta < 0 else "➖ No Change"
-    return price, f"{direction} ({percent:+.2f}%)"
-
+    change = f"{'📈 Increase' if delta > 0 else '📉 Decrease' if delta < 0 else '➖ No Change'} ({percent:+.2f}%)"
+    return price, change
+    
 def send_email(body):
     msg = MIMEMultipart()
     msg['From'] = EMAIL_FROM
