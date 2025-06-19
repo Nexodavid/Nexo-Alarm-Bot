@@ -105,7 +105,7 @@ def fetch_price():
     for line in lines:
         if ',' in line:
             d, p = line.split(',')
-            dates.append(d)
+            dates.append(datetime.strptime(d, "%Y-%m-%d").date())  # ✅ 날짜 변환
             prices.append(float(p))
 
     # 차트 그리기
@@ -118,6 +118,7 @@ def fetch_price():
     ax.set_ylabel("Price (USD)")
     ax.set_xlabel("Date")
     ax.grid(True)
+    fig.autofmt_xdate()  # ✅ 날짜 라벨 자동 회전
     fig.tight_layout()
     plt.savefig("chart.png")
     plt.close()
