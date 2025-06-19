@@ -9,6 +9,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
 import smtplib
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 from html import escape
 from datetime import datetime
 
@@ -108,7 +109,7 @@ def fetch_price():
             dates.append(datetime.strptime(d, "%Y-%m-%d").date())  # ✅ 날짜 변환
             prices.append(float(p))
 
-    # 차트 그리기
+    # ✅ 차트 그리기
     fig, ax = plt.subplots(figsize=(6, 4))
     ax.plot(dates, prices, marker='o', linewidth=2, label="NEXO", color="#007ACC")
     ax.axhline(PRICE_THRESHOLD, color='red', linestyle='dashed', linewidth=1)
@@ -118,12 +119,18 @@ def fetch_price():
     ax.set_ylabel("Price (USD)")
     ax.set_xlabel("Date")
     ax.grid(True)
-    fig.autofmt_xdate()  # ✅ 날짜 라벨 자동 회전
+
+    # ✅ x축 날짜 포맷 지정 (일 단위만 보이게)
+    ax.xaxis.set_major_locator(mdates.DayLocator())
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
+
+    # ✅ 날짜 라벨 자동 회전
+    fig.autofmt_xdate()
     fig.tight_layout()
     plt.savefig("chart.png")
     plt.close()
 
-    # 가격 변화율
+    # ✅ 가격 변화율
     prev = prices[-2] if len(prices) > 1 else price
     delta = price - prev
     percent = (delta / prev * 100) if prev != 0 else 0
