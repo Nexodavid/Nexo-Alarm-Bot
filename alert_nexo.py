@@ -1,4 +1,5 @@
 # alert_nexo.py
+
 import os
 import requests
 import feedparser
@@ -9,7 +10,9 @@ from email.mime.image import MIMEImage
 import smtplib
 import matplotlib.pyplot as plt
 from datetime import datetime
+from html import escape
 
+# === 설정 ===
 PRICE_THRESHOLD = 1.00
 NEWS_FEED = "https://news.google.com/rss/search?q=Nexo+crypto&hl=en-US&gl=US&ceid=US:en"
 TWITTER_URL = "https://nitter.net/search?f=tweets&q=Nexo+crypto"
@@ -22,7 +25,7 @@ EMAIL_SUBJECT = "[Nexo Alert] 새로운 뉴스/트윗/가격변동"
 TELEGRAM_TOKEN = os.environ['TELEGRAM_TOKEN']
 TELEGRAM_CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
 
-# 뉴스 수집
+# === 뉴스 수집 ===
 def fetch_news():
     feed = feedparser.parse(NEWS_FEED)
     previous = set(open("news_cache.txt", encoding="utf-8").read().splitlines())
@@ -36,7 +39,7 @@ def fetch_news():
                 f.write(link + "\n")
     return new_items
 
-# 트윗 수집
+# === 트윗 수집 ===
 def fetch_tweets():
     try:
         resp = requests.get(TWITTER_URL, timeout=10)
@@ -54,7 +57,7 @@ def fetch_tweets():
     except Exception:
         return ["[Twitter] 트윗 수집 실패"]
 
-# 가격 수집 및 차트
+# === 가격 수집 및 차트 생성 ===
 def fetch_price():
     try:
         price = requests.get(PRICE_API).json()['nexo']['usd']
@@ -88,7 +91,7 @@ def fetch_price():
     change_text = f"{direction} ({percent:+.2f}%)"
     return price, change_text
 
-# 이메일 전송
+# === 이메일 전송 ===
 def send_email(body):
     msg = MIMEMultipart()
     msg['From'] = EMAIL_FROM
@@ -107,16 +110,18 @@ def send_email(body):
         server.sendmail(EMAIL_FROM, EMAIL_TO, msg.as_string())
     print("✅ 이메일 전송 완료")
 
-# 텔레그램 전송
+# === 텔레그램 전송 ===
 def send_telegram(price, delta, news, tweets):
     try:
-        caption = f"📊 <b>NEXO Current Price:</b> ${price:.2f}\n{delta}\n"
+        caption = f"📊 <b>NEXO Current Price:</b> ${price:.2f}\n{escape(delta)}"
 
         for title, url in news:
-            caption += f"\n📰 <b><a href=\"{url}\">{title}</a></b>"
+            safe_title = escape(title)
+            caption += f'\n📰 <b><a href="{url}">{safe_title}</a></b>'
 
         for t in tweets:
-            caption += f"\n💬 {t}"
+            safe_tweet = escape(t)
+            caption += f"\n💬 {safe_tweet}"
 
         telegram_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
         with open("chart.png", "rb") as img:
@@ -130,7 +135,7 @@ def send_telegram(price, delta, news, tweets):
     except Exception as e:
         print(f"⚠️ 텔레그램 실패: {e}")
 
-# 실행
+# === 실행 ===
 news = fetch_news()
 tweets = fetch_tweets()
 price, delta = fetch_price()
