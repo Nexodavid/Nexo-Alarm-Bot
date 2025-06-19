@@ -79,28 +79,34 @@ def fetch_price():
         price = requests.get(PRICE_API).json()['nexo']['usd']
     except:
         price = 0
-        
-    # 날짜와 함께 저장
-    today = datetime.today().strftime("%Y-%m-%d")
-    with open("price_cache.txt", "a") as f:
-        f.write(f"{today},{price}\n")
 
-    # 캐시 로드
-    dates = []
-    prices = []
-    with open("price_cache.txt") as f:
-        for line in f:
-            if ',' in line:
-                d, p = line.strip().split(',')
-                dates.append(d)
-                prices.append(float(p))
-                
-    if len(prices) > 60:
-        dates = dates[-60:]
-        prices = prices[-60:]
-        with open("price_cache.txt", "w") as f:
-            for d, p in zip(dates, prices):
-                f.write(f"{d},{p}\n")
+    today = datetime.today().strftime("%Y-%m-%d")
+
+    # 기존 데이터 읽기
+    lines = []
+    if os.path.exists("price_cache.txt"):
+        with open("price_cache.txt", "r", encoding="utf-8") as f:
+            lines = [line.strip() for line in f if line.strip()]
+
+    # 중복된 오늘 날짜 제거
+    lines = [line for line in lines if not line.startswith(today)]
+    lines.append(f"{today},{price}")
+
+    # 최근 60개까지만 유지
+    if len(lines) > 60:
+        lines = lines[-60:]
+
+    # 저장
+    with open("price_cache.txt", "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+
+    # 날짜와 가격 분리
+    dates, prices = [], []
+    for line in lines:
+        if ',' in line:
+            d, p = line.split(',')
+            dates.append(d)
+            prices.append(float(p))
 
     # 차트 그리기
     fig, ax = plt.subplots(figsize=(6, 4))
