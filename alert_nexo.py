@@ -1,4 +1,5 @@
 # alert_nexo.py
+
 import os
 import requests
 import feedparser
@@ -8,10 +9,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
 import smtplib
 import matplotlib.pyplot as plt
-from datetime import datetime
 from html import escape
 
-# 설정
 PRICE_THRESHOLD = 1.00
 NEWS_FEED = "https://news.google.com/rss/search?q=Nexo+crypto&hl=en-US&gl=US&ceid=US:en"
 TWITTER_URL = "https://nitter.net/search?f=tweets&q=Nexo+crypto"
@@ -24,7 +23,6 @@ EMAIL_SUBJECT = "[Nexo Alert] Update: News, Twitter, Price"
 TELEGRAM_TOKEN = os.environ['TELEGRAM_TOKEN']
 TELEGRAM_CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
 
-# HTML 메시지 트렁크
 def truncate_html(text, max_len=1024):
     result = []
     total = 0
@@ -35,7 +33,14 @@ def truncate_html(text, max_len=1024):
         total += len(line) + 1
     return "\n".join(result)
 
-# 뉴스 수집
+def limit_file_lines(filename, max_lines=100):
+    with open(filename, "r+", encoding="utf-8") as f:
+        lines = f.readlines()
+        if len(lines) > max_lines:
+            f.seek(0)
+            f.writelines(lines[-max_lines:])
+            f.truncate()
+
 def fetch_news():
     feed = feedparser.parse(NEWS_FEED)
     previous = set(open("news_cache.txt", encoding="utf-8").read().splitlines())
@@ -47,9 +52,9 @@ def fetch_news():
                 text = f"📰 <b>{escape(entry.title)}</b>\n<a href='{entry.link}'>🔗 Read more</a>"
                 items.append(text)
                 f.write(f"{key}\n")
+    limit_file_lines("news_cache.txt", 100)
     return items
 
-# 트윗 수집
 def fetch_tweets():
     try:
         resp = requests.get(TWITTER_URL, timeout=10)
@@ -63,11 +68,11 @@ def fetch_tweets():
                 if text not in previous:
                     items.append(f"🐦 <i>{escape(text)}</i>")
                     f.write(f"{text}\n")
+        limit_file_lines("tweet_cache.txt", 100)
         return items
     except:
         return ["⚠️ Failed to fetch Twitter data"]
 
-# 가격 수집 및 그래프 생성
 def fetch_price():
     try:
         price = requests.get(PRICE_API).json()['nexo']['usd']
@@ -77,29 +82,30 @@ def fetch_price():
         f.write(f"{price}\n")
     with open("price_cache.txt") as f:
         prices = [float(x.strip()) for x in f.readlines() if x.strip()]
-    if len(prices) > 20:
-        prices = prices[-20:]
+    if len(prices) > 60:
+        prices = prices[-60:]
+    with open("price_cache.txt", "w") as f:
+        f.writelines([f"{x}\n" for x in prices])
 
-    # 차트 생성
     fig, ax = plt.subplots(figsize=(6, 4))
-    ax.plot(prices, marker='o', linewidth=2, label="NEXO", color="#007ACC")
+    ax.plot(prices, marker='o', linewidth=2, color="#007ACC", label="NEXO")
     ax.axhline(PRICE_THRESHOLD, color='red', linestyle='dashed', linewidth=1)
-    ax.set_title("NEXO Price Trend")
+    ax.set_facecolor("#f9f9f9")
+    fig.patch.set_facecolor("#ffffff")
+    ax.set_title("NEXO Price Trend (7 days)", fontsize=12)
     ax.set_ylabel("Price (USD)")
     ax.set_xlabel("Time")
     ax.grid(True)
-    fig.tight_layout()
+    plt.tight_layout()
     plt.savefig("chart.png")
     plt.close()
 
-    # 가격 변화율 계산
-    previous = prices[-2] if len(prices) > 1 else price
-    delta = price - previous
-    percent = (delta / previous * 100) if previous != 0 else 0
-    change = f"{'📈 Increase' if delta > 0 else '📉 Decrease' if delta < 0 else '➖ No Change'} ({percent:+.2f}%)"
-    return price, change
+    prev = prices[-2] if len(prices) > 1 else price
+    delta = price - prev
+    percent = (delta / prev * 100) if prev != 0 else 0
+    direction = "📈 Increase" if delta > 0 else "📉 Decrease" if delta < 0 else "➖ No Change"
+    return price, f"{direction} ({percent:+.2f}%)"
 
-# 이메일 전송
 def send_email(body):
     msg = MIMEMultipart()
     msg['From'] = EMAIL_FROM
@@ -118,7 +124,6 @@ def send_email(body):
         s.sendmail(EMAIL_FROM, EMAIL_TO, msg.as_string())
     print("✅ 이메일 전송 완료")
 
-# 텔레그램 전송
 def send_telegram(body):
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
@@ -139,7 +144,6 @@ tweet_items = fetch_tweets()
 price, movement = fetch_price()
 
 summary = f"<b>📊 NEXO Current Price: ${price:.2f}</b>\n{movement}\n\n"
-
 if not news_items and not tweet_items:
     alert_text = summary + "🔕 No new news or tweets."
 else:
