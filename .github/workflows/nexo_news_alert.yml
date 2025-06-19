@@ -1,15 +1,14 @@
-# .github/workflows/nexo_news_alert.yml
-
 name: Nexo Full Alert System
 
 on:
   schedule:
     - cron: '0 */6 * * *'  # 매 6시간마다 실행
-  workflow_dispatch:
+  workflow_dispatch:       # 수동 실행도 허용
 
 jobs:
   check-alerts:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
@@ -17,14 +16,15 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
-          python-version: '3.11'
+          python-version: '3.x'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install feedparser requests beautifulsoup4 matplotlib
 
-      - name: Restore News Cache
+      # 뉴스 캐시 로드
+      - name: Load Previous News Cache
         run: |
           if [ -f previous_news.txt ]; then
             cp previous_news.txt news_cache.txt
@@ -32,7 +32,8 @@ jobs:
             touch news_cache.txt
           fi
 
-      - name: Restore Tweet Cache
+      # 트윗 캐시 로드
+      - name: Load Previous Twitter Cache
         run: |
           if [ -f previous_tweets.txt ]; then
             cp previous_tweets.txt tweet_cache.txt
@@ -40,7 +41,8 @@ jobs:
             touch tweet_cache.txt
           fi
 
-      - name: Restore Price Cache
+      # 가격 캐시 로드
+      - name: Load Previous Price
         run: |
           if [ -f previous_price.txt ]; then
             cp previous_price.txt price_cache.txt
@@ -48,6 +50,7 @@ jobs:
             echo "0" > price_cache.txt
           fi
 
+      # 메인 파이썬 스크립트 실행
       - name: Run Nexo Alert Script
         env:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
@@ -56,11 +59,12 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python alert_nexo.py
 
+      # 캐시 저장
       - name: Save News Cache
         run: cp news_cache.txt previous_news.txt
 
       - name: Save Tweet Cache
         run: cp tweet_cache.txt previous_tweets.txt
 
-      - name: Save Price Cache
-        run: tail -n 28 price_cache.txt > previous_price.txt
+      - name: Save Latest Price
+        run: tail -n 1 price_cache.txt > previous_price.txt
