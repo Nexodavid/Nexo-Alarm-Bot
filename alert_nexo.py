@@ -17,76 +17,79 @@ PRICE_API = "https://api.coingecko.com/api/v3/simple/price?ids=nexo&vs_currencie
 EMAIL_FROM = os.environ['EMAIL_USER']
 EMAIL_PASS = os.environ['EMAIL_PASS']
 EMAIL_TO = os.environ['EMAIL_USER']
-EMAIL_SUBJECT = "[Nexo Alert] 새로운 뉴스/트윗/가격변동"
+EMAIL_SUBJECT = "[Nexo Alert] New News/Tweets/Price Changes"
 TELEGRAM_TOKEN = os.environ['TELEGRAM_TOKEN']
 TELEGRAM_CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
 
-# 뉴스 수집 및 필터링
+# Fetch and deduplicate news
 def fetch_news():
     feed = feedparser.parse(NEWS_FEED)
-    previous = set(open("news_cache.txt", encoding="utf-8").read().splitlines())
+    previous = set(open("news_cache.txt", encoding="utf-8").read().splitlines()) if os.path.exists("news_cache.txt") else set()
     new_items = []
     with open("news_cache.txt", "a", encoding="utf-8") as f:
         for entry in feed.entries[:10]:
             key = entry.link.strip()
             if key not in previous:
-                line = f"[뉴스] {entry.title} ({entry.link})"
+                line = f"[News] {entry.title} ({entry.link})"
                 new_items.append(line)
                 f.write(f"{key}\n")
     return new_items
 
-# 트윗 수집 및 필터링
+# Fetch and deduplicate tweets
 def fetch_tweets():
     try:
         resp = requests.get(TWITTER_URL, timeout=10)
         soup = BeautifulSoup(resp.text, 'html.parser')
         tweets = soup.find_all('div', class_='tweet-body')[:3]
-        previous = set(open("tweet_cache.txt", encoding="utf-8").read().splitlines())
+        previous = set(open("tweet_cache.txt", encoding="utf-8").read().splitlines()) if os.path.exists("tweet_cache.txt") else set()
         tweet_items = []
         with open("tweet_cache.txt", "a", encoding="utf-8") as f:
             for div in tweets:
                 text = div.get_text(strip=True)
                 if text not in previous:
-                    tweet_items.append(f"[트윗] {text}")
+                    tweet_items.append(f"[Tweet] {text}")
                     f.write(f"{text}\n")
         return tweet_items
     except Exception:
-        return ["[트윗] 트위터 수집 실패"]
+        return ["[Tweet] Failed to retrieve tweets"]
 
-# 가격 수집 및 차트
+# Fetch price and draw chart
 def fetch_price():
     try:
         price = requests.get(PRICE_API).json()['nexo']['usd']
     except:
         price = 0
+
     with open("price_cache.txt", "a") as f:
         f.write(f"{price}\n")
+
     with open("price_cache.txt") as f:
         prices = [float(x.strip()) for x in f.readlines() if x.strip()]
     if len(prices) > 20:
         prices = prices[-20:]
 
-    plt.style.use('ggplot')
+    # Draw chart
+    plt.style.use('seaborn-darkgrid')
     fig, ax = plt.subplots(figsize=(6, 4))
     ax.plot(prices, marker='o', linewidth=2, label="NEXO")
     ax.axhline(PRICE_THRESHOLD, color='red', linestyle='dashed', linewidth=1)
-    ax.set_title("NEXO 가격 추이", fontsize=12)
-    ax.set_ylabel("가격 (USD)")
-    ax.set_xlabel("시간")
+    ax.set_title("NEXO Price Trend", fontsize=12)
+    ax.set_ylabel("Price (USD)")
+    ax.set_xlabel("Time")
     ax.legend()
     fig.tight_layout()
     plt.savefig("chart.png")
     plt.close()
 
-    previous_price = prices[-2] if len(prices) > 1 else price
-    delta = price - previous_price
-    percent = (delta / previous_price * 100) if previous_price != 0 else 0
-    direction = "📈 상승" if delta > 0 else "📉 하락" if delta < 0 else "➖ 변동 없음"
-    change_text = f"{direction} ({percent:+.2f}%)"
+    prev_price = prices[-2] if len(prices) > 1 else price
+    delta = price - prev_price
+    percent = (delta / prev_price * 100) if prev_price else 0
+    direction = "📈 Up" if delta > 0 else "📉 Down" if delta < 0 else "➖ No change"
+    delta_msg = f"{direction} ({percent:+.2f}%)"
 
-    return price, change_text
+    return price, delta_msg
 
-# 이메일 전송
+# Email
 def send_email(body):
     msg = MIMEMultipart()
     msg['From'] = EMAIL_FROM
@@ -103,9 +106,9 @@ def send_email(body):
         server.starttls()
         server.login(EMAIL_FROM, EMAIL_PASS)
         server.sendmail(EMAIL_FROM, EMAIL_TO, msg.as_string())
-    print("✅ 이메일 전송 완료")
+    print("✅ Email sent")
 
-# 텔레그램 전송
+# Telegram
 def send_telegram(caption):
     try:
         telegram_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
@@ -115,21 +118,20 @@ def send_telegram(caption):
                 "caption": caption[:1024]
             }, files={"photo": img})
         print(response.text)
-        print("✅ 텔레그램 전송 완료")
+        print("✅ Telegram sent")
     except Exception as e:
-        print(f"⚠️ 텔레그램 실패: {e}")
+        print(f"⚠️ Telegram failed: {e}")
 
-# 실행
+# Execute
 news = fetch_news()
 tweets = fetch_tweets()
 price, delta = fetch_price()
 
-price_text = f"\n📊 NEXO 현재 가격은 ${price:.2f}\n{delta}"
-
+price_info = f"\n\n📊 Current NEXO Price: ${price:.2f}\n{delta}"
 if not news and not tweets:
-    combined = "새로운 뉴스나 트윗이 없습니다." + price_text
+    message = "No new news or tweets." + price_info
 else:
-    combined = "\n".join(news + tweets) + price_text
+    message = "\n".join(news + tweets) + price_info
 
-send_email(combined)
-send_telegram(combined)
+send_email(message)
+send_telegram(message)
