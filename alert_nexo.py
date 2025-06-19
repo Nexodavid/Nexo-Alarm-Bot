@@ -10,6 +10,7 @@ from email.mime.image import MIMEImage
 import smtplib
 import matplotlib.pyplot as plt
 from html import escape
+from datetime import datetime
 
 PRICE_THRESHOLD = 1.00
 NEWS_FEED = "https://news.google.com/rss/search?q=Nexo+crypto&hl=en-US&gl=US&ceid=US:en"
